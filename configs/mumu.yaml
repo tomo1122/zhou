@@ -1,0 +1,4 @@
+# MuMu Player specific settings for capture service
+mumu_base_path: "C:/software/MuMuPlayer-12.0"
+mumu_dll_path: "C:/software/MuMuPlayer-12.0/shell/sdk/external_renderer_ipc.dll"
+mumu_instance_index: 0

@@ -1,0 +1,5 @@
+
+# General application settings
+source: 'mumu'
+fps: 60
+log_level: 'INFO'
