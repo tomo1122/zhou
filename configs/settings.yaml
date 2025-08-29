@@ -1,5 +1,2 @@
-
-# General application settings
-source: 'mumu'
 fps: 60
-log_level: 'INFO'
+perf_test_duration: 5.0

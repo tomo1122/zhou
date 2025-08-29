@@ -16,3 +16,9 @@ dependencies = [
 dev = [
     "pytest>=8.4.1",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+markers = [
+    "performance: marks tests as performance tests (slow to run)"
+]
