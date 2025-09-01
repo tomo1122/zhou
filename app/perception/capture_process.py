@@ -1,4 +1,5 @@
 import ctypes
+import signal
 import logging
 
 from typing import Type
@@ -25,6 +26,9 @@ def run_capture_process(engine_class: Type[BaseCaptureEngine], config: MergedCon
         ipc_params (dict): TripleSharedBuffer 的参数。
         stop_event (Event): 用于停止进程的事件。
     """
+    # 忽略 Ctrl + C 信号
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    
     logger.info(f"捕获进程已启动，使用引擎: {engine_class.__name__}")
     ipc_buffer = None
     engine = None

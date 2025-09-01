@@ -69,9 +69,8 @@ class MumuCaptureEngine(BaseCaptureEngine):
             raise ConnectionError("未连接到模拟器")
         
         buffer_size = len(dest_buffer)
+        # BGRA
         result = self.dll.nemu_capture_display(self.handle, 0, buffer_size, byref(self._width), byref(self._height), dest_buffer)
-        
-        # result == 0 成功
         return result
 
     @property

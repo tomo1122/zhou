@@ -1,7 +1,7 @@
 import yaml
 
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -12,12 +12,14 @@ class SettingsConfig(BaseModel):
     fps: int = Field(60, gt=0, description = "期望FPS")
     perf_test_duration: float = Field(5.0, gt=0, description = "FPS测试任务测试时长")
     log_level: str = Field('INFO', description = "Logging level")
+    active_calibration_profile: Optional[str] = Field(None, description="Ruler进程要使用的校准文件名")
 
 class MumuConfig(BaseModel):
     mumu_base_path: str = Field(..., description = "MUMU模拟器地址")
     mumu_dll_path: str = Field(..., description = "MUMU模拟器DLL地址")
     mumu_instance_index: int = Field(0, ge=0, description = "MUMU模拟器实例索引")
- 
+    device_serial: str = Field("127.0.0.1:16384", description="adb 连接的地址")
+    
 
 class MergedConfig(SettingsConfig, MumuConfig):
     """一个包含所有配置字段的统一模型"""
