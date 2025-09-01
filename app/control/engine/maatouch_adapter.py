@@ -5,7 +5,7 @@ import subprocess
 
 from typing import Optional, IO, Tuple
 
-from app.control.base import BaseController
+from app.control.engine.base import BaseController
 
 
 logger = logging.getLogger(__name__)
@@ -133,7 +133,7 @@ class MaaTouchAdapter(BaseController):
             k 4 d
             k 4 u
             c
-            w 100
+            w 500
             u 0
             c
         ''')
@@ -151,7 +151,7 @@ class MaaTouchAdapter(BaseController):
             w 10
             m 1 {end_slide[0]} {end_slide[1]} 1
             c
-            w 100
+            w 500
             u 1
             c
         ''')
@@ -178,12 +178,12 @@ class MaaTouchAdapter(BaseController):
             d 2 1265 605 1
             u 2
             c
-            w 100
+            w 500
             d 3 1000 50 1
             u 3  
             c
         ''')
-        time.sleep(0.5)
+        time.sleep(1)
         self._write(skill_cmd)
 
     def recall(self, pos: Tuple[int, int]):
@@ -199,12 +199,12 @@ class MaaTouchAdapter(BaseController):
             k 4 d
             k 4 u
             c 
-            w 100
+            w 500
             d 2 920 325 1
             u 2
             c
         ''')
-        time.sleep(0.5)
+        time.sleep(1)
         self._write(recall_cmd)
 
     def toggle_pause(self):
@@ -251,13 +251,15 @@ if __name__ == "__main__":
     maatouch.recall([1250, 350])
     maatouch.recall([1420, 350])
 
-    # for _ in range(30):
-    #     print(_)
-    #     maatouch.deploy([1820, 1000], [1430, 580], 'left')
-    #     maatouch.next_frame(delay=33)
-    #     maatouch.skill([640, 490])
-    #     maatouch.toggle_pause()
-    #     maatouch.recall([1330, 266])
-    #     time.sleep(1)
+    for _ in range(100):
+        print(_)
+        # maatouch.deploy([1820, 1000], [1430, 580], 'left')
+        maatouch.next_frame(delay=12)
+        # maatouch.skill([640, 490])
+        # maatouch.toggle_pause()
+        # maatouch.recall([1330, 266])
+        # time.sleep(1)
+
+
     time.sleep(1)
     maatouch.close()

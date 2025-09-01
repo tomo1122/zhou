@@ -32,7 +32,7 @@ class BaseController(ABC):
         pass
 
     @abstractmethod
-    def next_frame(self, delay: int = 13):
+    def next_frame(self, delay: int = 33):
         """
         在暂停状态下，使游戏前进一帧。
         

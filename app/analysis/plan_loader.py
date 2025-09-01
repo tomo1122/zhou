@@ -1,125 +1,99 @@
 import yaml
 import logging
 
-import numpy as np
-
 from pathlib import Path
-from typing import Dict, Any, List, Tuple
+from typing import List, Dict, Any, Optional
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, field_validator, ValidationError
+
+from app.core.config import MergedConfig
 
 
 logger = logging.getLogger(__name__)
 
 
-class PlanAction(BaseModel):
-    frame: int
-    action: str
-    params: Dict[str, Any] = Field(default_factory=dict)
+class ActionModel(BaseModel):
+    """定义单个动作的结构"""
+    action_type: str  # e.g., 'deploy', 'skill', 'recall'
+    params: Optional[Dict[str, Any]] = None
 
 
-class PlanMetadata(BaseModel):
-    map_name: str
+class FrameActionGroupModel(BaseModel):
+    """定义单个触发帧及其包含的所有动作"""
+    trigger_frame: int
+    actions: List[ActionModel]
+
+    @field_validator('trigger_frame')
+    @classmethod
+    def frame_must_be_non_negative(cls, v: int) -> int:
+        """验证器：确保 trigger_frame 是非负数"""
+        if v < 0:
+            raise ValueError('trigger_frame 必须为非负整数')
+        return v
+
+    @field_validator('actions')
+    @classmethod
+    def actions_must_not_be_empty(cls, v: List[ActionModel]) -> List[ActionModel]:
+        """验证器：确保 actions 列表不为空"""
+        if not v:
+            raise ValueError('actions 列表不能为空')
+        return v
 
 
-class MapCoordinates(BaseModel):
-    src_points: List[Tuple[int, int]]
-    dst_points: List[Tuple[int, int]]
-    grid_dimensions: Tuple[int, int]
+class PlanLoader:
+    def __init__(self, config: MergedConfig):
+        """
+        初始化 PlanLoader。
 
+        Args:
+            config: 应用程序的统一配置对象。
+        """
+        self.plans_dir = config.project_root / "plans"
+        self.plans_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"作战计划目录: {self.plans_dir}")
 
-class BattlePlan(BaseModel):
-    metadata: PlanMetadata
-    map_coordinates: MapCoordinates
-    actions: List[PlanAction]
+    def load(self, plan_name: str) -> List[FrameActionGroupModel]:
+        """
+        加载并验证指定的作战计划文件。
 
+        Args:
+            plan_name: 作战计划的文件名 (不含 .yaml 后缀)。
 
-class ArknightsCoordinateTransformer:
-    """坐标变换器，从您的 map_transformer.py 移植并简化。"""
-    def __init__(self, src_points: list, dst_points: list):
-        self.matrix = self._calculate_matrix(np.array(src_points), np.array(dst_points))
+        Returns:
+            一个已排序和验证的作战计划列表，每个元素都是 FrameActionGroupModel 对象。
 
-    @staticmethod
-    def _calculate_matrix(src: np.ndarray, dst: np.ndarray) -> np.ndarray:
-        # 此处省略了复杂的SVD求解过程，直接使用OpenCV的findHomography会更简单健壮，
-        # 但为保持与您代码一致，此处假设您的求解方法是有效的。
-        # 为简化示例，我们用一个占位符。在实际项目中，您应移入完整的求解代码。
-        # from cv2 import findHomography, warpPerspective
-        # matrix, _ = findHomography(src, dst)
-        # return matrix
-        
-        # 使用您原来的SVD求解方法
-        A = []
-        for i in range(4):
-            x, y = src[i]
-            xp, yp = dst[i]
-            A.extend([
-                [-x, -y, -1, 0, 0, 0, x*xp, y*xp, xp],
-                [0, 0, 0, -x, -y, -1, x*yp, y*yp, yp]
-            ])
-        A = np.asarray(A)
-        _, _, Vh = np.linalg.svd(A)
-        matrix = Vh[-1, :].reshape((3, 3))
-        return matrix / matrix[2, 2]
+        Raises:
+            FileNotFoundError: 如果计划文件不存在。
+            ValueError: 如果计划文件格式或内容无效。
+        """
+        filepath = self.plans_dir / f"{plan_name}.yaml"
+        if not filepath.is_file():
+            raise FileNotFoundError(f"作战计划文件未找到: {filepath}")
+        logger.info(f"正在加载作战计划: {filepath.name}...")
 
-    def transform_point(self, point: tuple) -> Tuple[int, int]:
-        p_src = np.array([point[0], point[1], 1.0])
-        p_dst_h = self.matrix @ p_src
-        w = p_dst_h[2]
-        if abs(w) < 1e-6: return (0, 0)
-        return (int(p_dst_h[0] / w), int(p_dst_h[1] / w))
-
-
-class PlanHelper:
-    """
-    负责加载作战计划并提供坐标变换和网格计算功能的辅助类。
-    """
-    def __init__(self, plan_path: Path, screen_resolution: Tuple[int, int]):
-        self.plan: BattlePlan = self._load_and_validate_plan(plan_path)
-        self.screen_width, self.screen_height = screen_resolution
-        
-        coords = self.plan.map_coordinates
-        self.transformer = ArknightsCoordinateTransformer(coords.src_points, coords.dst_points)
-        self.grid_centers = self._calculate_grid_centers(coords.src_points, coords.grid_dimensions)
-
-    def _load_and_validate_plan(self, plan_path: Path) -> BattlePlan:
-        if not plan_path.is_file():
-            raise FileNotFoundError(f"作战计划文件未找到: {plan_path}")
         try:
-            with open(plan_path, 'r', encoding='utf-8') as f:
-                data = yaml.safe_load(f)
-            return BattlePlan.model_validate(data)
+            with filepath.open('r', encoding='utf-8') as f:
+                raw_data = yaml.safe_load(f)
         except yaml.YAMLError as e:
-            raise IOError(f"解析作战计划YAML文件失败: {e}")
-        except ValidationError as e:
-            raise ValueError(f"作战计划文件内容校验失败: {e}")
+            raise ValueError(f"'{filepath.name}' 文件 YAML 格式错误: {e}")
 
-    def _calculate_grid_centers(self, src_corners: list, grid_dimensions: tuple) -> dict:
-        cols, rows = grid_dimensions
-        p_tl, p_tr, p_br, p_bl = np.array(src_corners, dtype=np.float32)
+        validated_plan: List[FrameActionGroupModel] = []
+        for i, group_data in enumerate(raw_data):
+            try:
+                validated_group = FrameActionGroupModel.model_validate(group_data)
+                validated_plan.append(validated_group)
+            except ValidationError as e:
+                raise ValueError(f"'{filepath.name}' 中第 {i+1} 个动作组验证失败:\n{e}")
 
-        centers = {}
-        for r in range(rows):
-            for c in range(cols):
-                u, v = (c + 0.5) / cols, (r + 0.5) / rows
-                p_top = (1 - u) * p_tl + u * p_tr
-                p_bottom = (1 - u) * p_bl + u * p_br
-                src_center = tuple( (1 - v) * p_top + v * p_bottom )
-                centers[(c + 1, r + 1)] = self.transformer.transform_point(src_center)
-        return centers
+        # 按 trigger_frame 对整个计划进行排序
+        validated_plan.sort(key=lambda x: x.trigger_frame)
+        logger.info(f"作战计划 '{plan_name}' 加载并验证成功，共 {len(validated_plan)} 个触发时间点。")
+        return validated_plan
 
-    def get_actions(self) -> List[Dict[str, Any]]:
-        """获取排序后的动作列表，并预处理坐标。"""
-        sorted_actions = sorted([a.model_dump() for a in self.plan.actions], key=lambda x: x['frame'])
+
+    def get_available_plans(self) -> List[str]:
+        """扫描 plans 目录，返回所有可用的作战计划名称列表。 """
+        if not self.plans_dir.is_dir():
+            return []
         
-        for action in sorted_actions:
-            params = action.get("params", {})
-            if "grid" in params and isinstance(params["grid"], list):
-                 grid_key = tuple(params["grid"])
-                 if grid_key in self.grid_centers:
-                     # 将网格坐标转换为屏幕绝对坐标
-                     params["pos"] = self.grid_centers[grid_key]
-                 else:
-                     logger.warning(f"动作 {action} 中的网格坐标 {grid_key} 无效，可能导致执行失败。")
-        
-        return sorted_actions
+        return sorted([p.stem for p in self.plans_dir.glob("*.yaml")])
