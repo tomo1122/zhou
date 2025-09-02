@@ -95,7 +95,7 @@ class CostBarAnalyzer:
         pixel_width = get_raw_filled_pixel_width_np(frame, self.roi)
         # 未检测到费用条
         if pixel_width is None:
-            logger.warning(f'未检测到费用条')
+            logger.debug(f'未检测到费用条')
             return None
         
         # （不知道有什么用，我的校准文件总是只有一个模型。但是加进去没啥影响，那就不管。）

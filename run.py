@@ -13,6 +13,7 @@ from app.analysis.ruler_process import run_ruler_process
 from app.analysis.calibrator import CalibrationManager, run_calibration
 from app.control.commander_process import run_commander_process
 from app.control.engine.maatouch_adapter import MaaTouchAdapter
+from app.control.engine.mumu_macro_adapter import MumuMacroController
 
 
 logging.basicConfig(
@@ -76,17 +77,41 @@ def main_run(args):
         # 2.3 Commander 进程 
         plan_name = args.plan
         logger.info(f"即将执行作战计划: '{plan_name}'")
-        commander_proc = Process(
-            target=run_commander_process,
-            name="CommanderProcess",
-            args=(
-                config,
-                frame_ipc_params,
-                plan_name,
-                MaaTouchAdapter,
-                stop_event,
-            ),
-        )
+        # 使用mumu宏进行控制
+        if 0:
+            controller_kwargs = {
+                "mumu_window_title": "MuMu模拟器12",
+                "render_window_class": "nemuwin"
+            }
+
+            commander_proc = Process(
+                target=run_commander_process,
+                name="CommanderProcess",
+                args=(
+                    config,
+                    frame_ipc_params,
+                    plan_name,
+                    MumuMacroController,
+                    controller_kwargs,
+                    stop_event,
+                ),
+            )
+        else:
+            controller_kwargs = {}
+            commander_proc = Process(
+                target=run_commander_process,
+                name="CommanderProcess",
+                args=(
+                    config,
+                    frame_ipc_params,
+                    plan_name,
+                    MaaTouchAdapter,
+                    controller_kwargs,
+                    stop_event,
+                ),
+            )
+
+
         processes.append(commander_proc)
 
         # 3. 启动所有进程

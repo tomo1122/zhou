@@ -133,7 +133,7 @@ class MaaTouchAdapter(BaseController):
             k 4 d
             k 4 u
             c
-            w 500
+            w 100
             u 0
             c
         ''')
@@ -148,10 +148,9 @@ class MaaTouchAdapter(BaseController):
 
         slide_cmd = textwrap.dedent(f'''
             d 1 {end_pos[0]} {end_pos[1]} 1
-            w 10
+            w 50
             m 1 {end_slide[0]} {end_slide[1]} 1
-            c
-            w 500
+            w 100
             u 1
             c
         ''')
@@ -178,7 +177,7 @@ class MaaTouchAdapter(BaseController):
             d 2 1265 605 1
             u 2
             c
-            w 500
+            w 100
             d 3 1000 50 1
             u 3  
             c
@@ -199,7 +198,7 @@ class MaaTouchAdapter(BaseController):
             k 4 d
             k 4 u
             c 
-            w 500
+            w 100
             d 2 920 325 1
             u 2
             c
@@ -224,7 +223,8 @@ class MaaTouchAdapter(BaseController):
             k 4 u
             c
         ''')
-        time.sleep(1)
+        # commander_process要求是非阻塞的
+        # time.sleep(1)
         self._write(next_frame_cmd)
 
 
@@ -241,7 +241,9 @@ if __name__ == "__main__":
     maatouch.deploy([1140, 1000], [1250, 350], 'left')
     maatouch.deploy([1300, 1000], [1420, 350], 'left')
     
-    time.sleep(3)
+    maatouch.toggle_pause()
+    time.sleep(2)
+    maatouch.toggle_pause()
 
     maatouch.recall([1090, 600])
     maatouch.recall([1250, 600])
@@ -251,10 +253,10 @@ if __name__ == "__main__":
     maatouch.recall([1250, 350])
     maatouch.recall([1420, 350])
 
-    for _ in range(100):
-        print(_)
+    # for _ in range(100):
+        # print(_)
         # maatouch.deploy([1820, 1000], [1430, 580], 'left')
-        maatouch.next_frame(delay=12)
+        # maatouch.next_frame(delay=12)
         # maatouch.skill([640, 490])
         # maatouch.toggle_pause()
         # maatouch.recall([1330, 266])

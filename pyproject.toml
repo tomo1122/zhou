@@ -9,6 +9,8 @@ dependencies = [
     "numpy>=2.2.6",
     "pillow>=11.3.0",
     "pydantic>=2.11.7",
+    "pydirectinput>=1.0.4",
+    "pywin32>=311",
     "pyyaml>=6.0.2",
 ]
 
