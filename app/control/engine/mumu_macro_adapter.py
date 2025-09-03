@@ -1,24 +1,24 @@
 import time
 import logging
-from typing import Tuple, Optional
 
-# 导入底层控制库
 import pydirectinput
 import win32gui
 import win32api
 import win32con
 
+from typing import Tuple, Optional
+
 from app.control.engine.base import BaseController
+
 
 logger = logging.getLogger(__name__)
 
-# 配置 pydirectinput
+
 pydirectinput.PAUSE = 0.1
 if not hasattr(win32con, 'XBUTTON1'):
     win32con.XBUTTON1 = 0x0001
 if not hasattr(win32con, 'XBUTTON2'):
     win32con.XBUTTON2 = 0x0002
-
 
 
 class MumuMacroController(BaseController):
@@ -154,7 +154,7 @@ class MumuMacroController(BaseController):
         """
         self._activate_window()
 
-        # --- 步骤 1: 放置干员 (右键拖拽) ---
+        # 步骤 1: 放置干员 (右键拖拽)
         screen_start = self._transform_to_screen_coords(*start_pos)
         screen_end = self._transform_to_screen_coords(*end_pos)
 
@@ -168,12 +168,12 @@ class MumuMacroController(BaseController):
         pydirectinput.mouseDown(button='right')
         time.sleep(self.action_delay)
         pydirectinput.moveTo(*screen_end, duration=0.5)
-        time.sleep(self.action_delay)
+        time.sleep(0.5)
         pydirectinput.mouseUp(button='right')
         
-        time.sleep(0.2) # 等待放置动画完成
+        time.sleep(0.3) # 等待放置动画完成
 
-        # --- 步骤 2: 设定朝向 (左键拖拽) ---
+        # 步骤 2: 设定朝向 (左键拖拽)
         target_w, target_h = self.target_resolution
         if direction == 'left':   end_slide_virtual = (max(end_pos[0] - slide_length, 0), end_pos[1])
         elif direction == 'right':  end_slide_virtual = (min(end_pos[0] + slide_length, target_w), end_pos[1])
@@ -192,7 +192,7 @@ class MumuMacroController(BaseController):
         # 鼠标当前应该还在 screen_end 位置
         pydirectinput.mouseDown(button='left')
         time.sleep(self.action_delay)
-        pydirectinput.moveTo(*screen_slide_end, duration=0.2)
+        pydirectinput.moveTo(*screen_slide_end, duration=0.5)
         time.sleep(self.action_delay)
         pydirectinput.mouseUp(button='left')
 

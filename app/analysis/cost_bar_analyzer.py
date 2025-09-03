@@ -106,7 +106,7 @@ class CostBarAnalyzer:
         logical_frame = self._get_logical_frame(pixel_width, active_profile_model)
         
         # 仅在逻辑帧发生变化时才继续处理和发布
-        if logical_frame and logical_frame != self.previous_logical_frame:
+        if logical_frame is not None and logical_frame != self.previous_logical_frame:
             # 一个循环多少帧
             total_frames_in_cycle = active_profile_model.get('total_frames', 30)
 
@@ -115,7 +115,8 @@ class CostBarAnalyzer:
                 self.cycle_base_frames += total_frames_in_cycle
                 self.cycle_counter += 1
             
-            current_total_frames = self.cycle_base_frames + logical_frame
+            # 1-30 显示
+            current_total_frames = self.cycle_base_frames + logical_frame + 1
             self.previous_logical_frame = logical_frame
             
             return (current_total_frames, logical_frame, self.cycle_counter, time.time())
