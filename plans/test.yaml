@@ -1,0 +1,33 @@
+- trigger_frame: 25
+  actions:
+  - action_type: deploy
+    params:
+      start_pos:
+      - 101
+      - 962
+      end_pos:
+      - 555
+      - 540
+      direction: right
+- trigger_frame: 330
+  actions:
+  - action_type: deploy
+    params:
+      start_pos:
+      - 640
+      - 978
+      end_pos:
+      - 958
+      - 315
+      direction: right
+- trigger_frame: 660
+  actions:
+  - action_type: deploy
+    params:
+      start_pos:
+      - 597
+      - 977
+      end_pos:
+      - 617
+      - 791
+      direction: right

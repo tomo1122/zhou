@@ -103,6 +103,7 @@ def run_commander_process(
             if next_action_index >= len(plan):
                 logger.info("所有计划已执行完毕")
                 state = CommanderState.DONE
+                continue
             else:
                 target_action_group = plan[next_action_index]
                 target_frame = target_action_group.trigger_frame
@@ -123,8 +124,9 @@ def run_commander_process(
             
             elif state == CommanderState.PAUSING:
                 logger.info(f"[状态: PAUSING] 正在暂停游戏...")
-                controller.toggle_pause()
-                is_game_paused = True
+                if not is_game_paused:
+                    controller.toggle_pause()
+                    is_game_paused = True
                 time.sleep(0.1) # 等待模拟器响应暂停操作
                 state = CommanderState.STEPPING
 
@@ -151,14 +153,17 @@ def run_commander_process(
                 
                 # 分支 3: 未检测到新帧，且未超次数，这是唯一应该发送指令的情况
                 else:
-                    logger.info(f"[状态: STEPPING] 帧未变化，发送第 {step_attempts + 1}/{MAX_STEP_ATTEMPTS} 次 'next_frame' 指令...")
+                    
                     # next_frame 是原子的、非阻塞的
                     if (target_frame - current_total_frames) > 5:
-                        controller.next_frame(delay = 166) 
+                        logger.info(f"[状态: STEPPING] 帧未变化，发送第 {step_attempts + 1}/{MAX_STEP_ATTEMPTS} 次 'next_frame' 指令; delay: 99")
+                        controller.next_frame(delay = 99) 
                     elif 1 < (target_frame - current_total_frames) <= 5:
                         controller.next_frame(delay = 33)
+                        logger.info(f"[状态: STEPPING] 帧未变化，发送第 {step_attempts + 1}/{MAX_STEP_ATTEMPTS} 次 'next_frame' 指令; delay: 33")
                     else:
                         controller.next_frame(delay = 12)
+                        logger.info(f"[状态: STEPPING] 帧未变化，发送第 {step_attempts + 1}/{MAX_STEP_ATTEMPTS} 次 'next_frame' 指令; delay: 12")
                     
                     step_attempts += 1
                     # 在Python端短暂等待，为IPC更新和模拟器响应留出时间
@@ -192,8 +197,9 @@ def run_commander_process(
                     next_target_frame = plan[next_action_index].trigger_frame
                     if next_target_frame - current_total_frames > precision_lead_frames:
                         logger.info(f"下一个目标 {next_target_frame} 较远，恢复游戏运行。")
-                        controller.toggle_pause()
-                        is_game_paused = False
+                        if is_game_paused:
+                            controller.toggle_pause()
+                            is_game_paused = False
                         time.sleep(0.2) # 等待模拟器响应恢复操作
                         state = CommanderState.RUNNING
                     else:
@@ -208,13 +214,6 @@ def run_commander_process(
         # 清理工作
         logger.info(f"Commander 进程正在关闭 (当前状态: {state.name})...")
         if controller:
-            # 如果进程意外退出时游戏处于暂停状态，尝试恢复游戏运行
-            if is_game_paused:
-                try:
-                    logger.warning("进程退出前，尝试恢复游戏运行...")
-                    controller.toggle_pause()
-                except Exception as final_e:
-                    logger.error(f"恢复游戏运行时再次发生错误: {final_e}")
             if hasattr(controller, 'close'):
                 logger.info(f"正在关闭 {controller.__class__.__name__} 连接...")
                 controller.close()

@@ -18,7 +18,9 @@ class MumuConfig(BaseModel):
     mumu_base_path: str = Field(..., description = "MUMU模拟器地址")
     mumu_dll_path: str = Field(..., description = "MUMU模拟器DLL地址")
     mumu_instance_index: int = Field(0, ge=0, description = "MUMU模拟器实例索引")
+    mumu_render_class: str = Field("nemuwin", description = "MuMu模拟器渲染子窗口的类名")
     device_serial: str = Field("127.0.0.1:16384", description="adb 连接的地址")
+    
     
 
 class MergedConfig(SettingsConfig, MumuConfig):

@@ -231,8 +231,20 @@ class MumuMacroController(BaseController):
 
     def next_frame(self, **kwargs):
         self._activate_window()
-        logger.debug("下一帧 ('t')")
-        pydirectinput.press('t')
+        delay = kwargs.get("delay", 13) 
+        key = None
+
+        if delay == 99:
+            key = "y"
+        elif delay == 33:
+            key = "t"
+        elif delay == 12:
+            key = "r"
+        else:
+            raise RuntimeError(f"mumu_macro_adapter 收到了一个不合法的delay： {delay}")
+
+        logger.debug(f"下一帧 (delay={delay}, key='{key}')")
+        pydirectinput.press(key)
 
 
 if __name__ == "__main__":

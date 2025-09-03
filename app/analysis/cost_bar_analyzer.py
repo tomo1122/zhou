@@ -104,10 +104,9 @@ class CostBarAnalyzer:
         active_profile_model = self.active_profile['profiles'][current_profile_index]
         # 获取当前的逻辑帧
         logical_frame = self._get_logical_frame(pixel_width, active_profile_model)
-        self.last_detection_time = time.time()
         
         # 仅在逻辑帧发生变化时才继续处理和发布
-        if logical_frame != self.previous_logical_frame:
+        if logical_frame and logical_frame != self.previous_logical_frame:
             # 一个循环多少帧
             total_frames_in_cycle = active_profile_model.get('total_frames', 30)
 
@@ -129,4 +128,3 @@ class CostBarAnalyzer:
         self.cycle_counter = 0
         self.cycle_base_frames = 0
         self.previous_logical_frame = -1
-        self.last_detection_time = time.time()

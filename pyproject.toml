@@ -10,6 +10,7 @@ dependencies = [
     "pillow>=11.3.0",
     "pydantic>=2.11.7",
     "pydirectinput>=1.0.4",
+    "pynput>=1.8.1",
     "pywin32>=311",
     "pyyaml>=6.0.2",
 ]
