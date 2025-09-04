@@ -1,10 +1,38 @@
-# Python-generated files
-__pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
+# Python 虚拟环境
+.venv/
+env/
+venv/
 
-# Virtual environments
-.venv
+# Python 编译文件和缓存
+__pycache__/
+*.pyc
+*.pyd
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# IDE 和编辑器文件
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 日志文件和临时文件
+*.log
+error.txt
+*.tmp
+*.bak
+
+# 用户特定的校准配置文件
+# 这些文件通常是根据用户环境生成的，不应提交到版本控制
+calibration/*.json
+
+# 用户生成的计划文件
+# 示例计划文件 (example.yaml) 通常会保留，但用户录制或生成的其他计划文件可以忽略
+# 如果您希望所有计划文件都被忽略，可以改为 plans/
+plans/*.yaml
+!plans/example.yaml # 排除示例计划文件，使其不被忽略
