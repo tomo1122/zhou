@@ -134,16 +134,63 @@ class MumuMacroController(BaseController):
         logger.info("MuMu宏控制器连接已关闭。")
 
 
-    def _activate_window(self):
+    def _activate_window(self, max_retries=3, retry_delay=0.2):
+        """
+        激活窗口，带重试机制
+        
+        Args:
+            max_retries: 最大重试次数
+            retry_delay: 重试间隔时间（秒）
+        """
         if not self.is_connected or not self.main_hwnd:
             raise IOError("控制器未连接，无法激活窗口。")
-        try:
-            win32gui.SetForegroundWindow(self.main_hwnd)
-            time.sleep(0.1) # 增加激活等待时间
-            self._update_render_area() # 每次激活都更新一下区域，防止窗口移动
-        except Exception:
+        
+        # 首先检查窗口是否仍然存在
+        if not win32gui.IsWindow(self.main_hwnd):
             self.is_connected = False
-            raise IOError(f"窗口 (句柄: {self.main_hwnd}) 可能已关闭，激活失败。")
+            raise IOError(f"窗口 (句柄: {self.main_hwnd}) 已不存在。")
+        
+        # 检查窗口是否已经是前台窗口
+        current_fg = win32gui.GetForegroundWindow()
+        if current_fg == self.main_hwnd:
+            # 窗口已经是激活状态，只需要更新渲染区域
+            self._update_render_area()
+            return
+        
+        last_error = None
+        for attempt in range(max_retries + 1):  # +1 因为第一次不算重试
+            try:
+                # 检查窗口是否可见
+                if not win32gui.IsWindowVisible(self.main_hwnd):
+                    logging.warning(f"窗口 (句柄: {self.main_hwnd}) 不可见，尝试显示...")
+                    win32gui.ShowWindow(self.main_hwnd, win32con.SW_RESTORE)
+                    time.sleep(0.1)
+                
+                # 尝试激活窗口
+                win32gui.SetForegroundWindow(self.main_hwnd)
+                time.sleep(0.1)
+                current_fg = win32gui.GetForegroundWindow()
+                if current_fg == self.main_hwnd:
+                    self._update_render_area()
+                    return
+                
+            except Exception as e:
+                last_error = e
+                if attempt < max_retries:
+                    logging.warning(f"激活窗口失败 (尝试 {attempt + 1}/{max_retries + 1}): {e}")
+                    time.sleep(retry_delay)
+                else:
+                    # 最后一次尝试失败
+                    logging.error(f"激活窗口最终失败: {e}")
+                    # 检查窗口是否真的关闭了
+                    if not win32gui.IsWindow(self.main_hwnd):
+                        self.is_connected = False
+                        raise IOError(f"窗口 (句柄: {self.main_hwnd}) 已关闭。")
+                    else:
+                        # 窗口存在但激活失败，可能是权限问题
+                        raise IOError(f"无法激活窗口 (句柄: {self.main_hwnd})，可能权限不足或被系统保护。原始错误: {last_error}")
+
+
 
 
     def deploy(self, start_pos: Tuple[int, int], end_pos: Tuple[int, int], direction: str, slide_length: int = 200):

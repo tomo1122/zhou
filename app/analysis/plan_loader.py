@@ -16,6 +16,7 @@ class ActionModel(BaseModel):
     """定义单个动作的结构"""
     action_type: str  # e.g., 'deploy', 'skill', 'recall'
     params: Optional[Dict[str, Any]] = None
+    comment: Optional[str] = None # Added comment field
 
 
 class FrameActionGroupModel(BaseModel):

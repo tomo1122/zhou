@@ -3,6 +3,7 @@ import logging
 import multiprocessing
 from multiprocessing import Queue
 from logging.handlers import QueueHandler
+from typing import List, Dict, Any
 
 from PySide6.QtCore import QObject, Signal
 
@@ -32,6 +33,7 @@ class BackendManager:
         self.frame_data_buffer = None
         self.commander_event_queue = None
         self.recorder_event_queue = None
+        self.final_plan_queue = None # New queue for final plan data
         self.log_queue = None
         self.plan = None
 
@@ -127,6 +129,7 @@ class BackendManager:
         """启动录制模式所需的所有进程。"""
         self.stop_event = multiprocessing.Event()
         self.recorder_event_queue = multiprocessing.Queue()
+        self.final_plan_queue = multiprocessing.Queue() # Initialize the new queue
         self._initialize_ipc()
 
         # 1. Capture Process
@@ -156,6 +159,7 @@ class BackendManager:
                 self.stop_event,
                 self.recorder_event_queue,  
                 self.log_queue,
+                self.final_plan_queue, # Pass the new queue
             ),
         )
         self.processes.append(recorder_proc)
@@ -186,6 +190,18 @@ class BackendManager:
         self._cleanup_ipc()
 
         logger.info("所有资源已清理。")
+
+    def save_final_recorded_plan(self, plan_name: str, actions: List[Dict[str, Any]]):
+        """将最终的录制计划发送给 Recorder 进程进行保存。"""
+        if self.final_plan_queue:
+            logger.info(f"将最终计划发送到 Recorder 进程进行保存: {plan_name}")
+            self.final_plan_queue.put({"plan_name": plan_name, "actions": actions})
+        else:
+            logger.error("final_plan_queue 未初始化，无法保存最终计划。")
+
+    def reload_config(self):
+        self.config = get_config()
+        return self.config
 
     def create_calibration_worker(self):
         return CalibrationWorker(self.config)

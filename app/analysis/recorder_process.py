@@ -35,11 +35,12 @@ class ActionRecorder:
     负责监听用户输入，关联帧数，并记录为结构化动作。
     """
 
-    def __init__(self, config: MergedConfig, frame_buffer: DoubleSharedBuffer, output_plan_path: str, event_queue: Optional[multiprocessing.Queue] = None):
+    def __init__(self, config: MergedConfig, frame_buffer: DoubleSharedBuffer, output_plan_path: str, event_queue: Optional[multiprocessing.Queue] = None, final_plan_queue: Optional[multiprocessing.Queue] = None):
         self.config = config
         self.frame_buffer = frame_buffer
         self.output_plan_path = output_plan_path
         self.event_queue = event_queue
+        self.final_plan_queue = final_plan_queue 
         self.target_w = 1920
         self.target_h = 1080
         # 干员栏的相对区域
@@ -240,18 +241,34 @@ class ActionRecorder:
 
     def _save_plan(self):
         """将录制的动作格式化并保存到YAML文件。"""
-        if not self.recorded_actions:
+        actions_to_save = []
+        if self.final_plan_queue and not self.final_plan_queue.empty():
+            # If there's a final plan from UI, use it
+            try:
+                final_data = self.final_plan_queue.get_nowait()
+                actions_to_save = final_data.get("actions", [])
+                logger.info("使用从 UI 接收到的最终计划进行保存。")
+            except multiprocessing.queues.Empty:
+                logger.warning("final_plan_queue 为空，将使用录制动作。")
+                actions_to_save = self.recorded_actions
+        else:
+            actions_to_save = self.recorded_actions
+
+        if not actions_to_save:
             logger.warning("没有录制到任何动作，不生成作战计划文件。")
             return
         
         # 将相同帧的动作聚合到一个 "FrameActionGroup"
         grouped_actions = defaultdict(list)
-        for action in self.recorded_actions:
+        for action in actions_to_save:
             frame = action['trigger_frame']
-            grouped_actions[frame].append({
+            action_entry = {
                 "action_type": action['action_type'],
                 "params": action.get('params', {})
-            })
+            }
+            if 'comment' in action and action['comment']:
+                action_entry['comment'] = action['comment']
+            grouped_actions[frame].append(action_entry)
             
         # 构建最终的YAML结构
         final_plan = []
@@ -289,7 +306,8 @@ def run_recorder_process(
     output_plan_name: str,
     stop_event: SyncEvent,
     event_queue: Optional[multiprocessing.Queue] = None,
-    log_queue: Optional[multiprocessing.Queue] = None
+    log_queue: Optional[multiprocessing.Queue] = None,
+    final_plan_queue: Optional[multiprocessing.Queue] = None # New argument
 ):
     """
     Recorder 进程的入口函数。
@@ -313,7 +331,7 @@ def run_recorder_process(
         frame_buffer = DoubleSharedBuffer(**frame_ipc_params, create=False)
         
         # 3. 初始化并运行录制器
-        recorder = ActionRecorder(config, frame_buffer, str(output_path), event_queue)
+        recorder = ActionRecorder(config, frame_buffer, str(output_path), event_queue, final_plan_queue)
         recorder.start()
 
         # 4. 等待停止信号

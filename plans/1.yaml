@@ -1,52 +1,126 @@
-- trigger_frame: 6
+- trigger_frame: 13
   actions:
   - action_type: deploy
     params:
+      direction: right
+      end_pos:
+      - 736
+      - 802
       start_pos:
       - 82
-      - 982
-      end_pos:
-      - 866
-      - 798
+      - 977
+    comment: 部署 桃金娘
+- trigger_frame: 129
+  actions:
+  - action_type: skill
+    params:
+      pos:
+      - 588
+      - 831
+    comment: 桃金娘技能
+- trigger_frame: 225
+  actions:
+  - action_type: deploy
+    params:
       direction: right
-- trigger_frame: 96
+      end_pos:
+      - 769
+      - 459
+      start_pos:
+      - 528
+      - 965
+    comment: '111'
+- trigger_frame: 321
+  actions:
+  - action_type: deploy
+    params:
+      direction: right
+      end_pos:
+      - 1275
+      - 347
+      start_pos:
+      - 79
+      - 952
+    comment: '222'
+- trigger_frame: 355
   actions:
   - action_type: skill
     params:
       pos:
-      - 708
-      - 798
-- trigger_frame: 391
+      - 1157
+      - 298
+    comment: '333'
+- trigger_frame: 474
   actions:
   - action_type: deploy
     params:
-      start_pos:
-      - 83
-      - 988
+      direction: right
       end_pos:
-      - 1318
-      - 777
-      direction: up
+      - 634
+      - 705
+      start_pos:
+      - 598
+      - 1008
+    comment: '444'
+- trigger_frame: 551
+  actions:
   - action_type: skill
     params:
       pos:
-      - 1200
-      - 814
+      - 604
+      - 448
+    comment: '555'
+- trigger_frame: 678
+  actions:
+  - action_type: skill
+    params:
+      pos:
+      - 434
+      - 655
+    comment: '666'
+  - action_type: skill
+    params:
+      pos:
+      - 401
+      - 670
+    comment: '777'
+- trigger_frame: 785
+  actions:
   - action_type: deploy
     params:
-      start_pos:
-      - 95
-      - 976
+      direction: right
       end_pos:
-      - 1158
-      - 649
-      direction: down
+      - 1022
+      - 823
+      start_pos:
+      - 1270
+      - 963
+    comment: e
+- trigger_frame: 1142
+  actions:
+  - action_type: skill
+    params:
+      pos:
+      - 561
+      - 820
+    comment: '9999'
+- trigger_frame: 1334
+  actions:
+  - action_type: skill
+    params:
+      pos:
+      - 914
+      - 781
+    comment: '1123'
+- trigger_frame: 1430
+  actions:
   - action_type: deploy
     params:
-      start_pos:
-      - 1832
-      - 964
+      direction: right
       end_pos:
-      - 1433
-      - 629
-      direction: left
+      - 1024
+      - 593
+      start_pos:
+      - 1353
+      - 950
+    comment: '123123'
