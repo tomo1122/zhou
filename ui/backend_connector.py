@@ -1,13 +1,14 @@
 import time
 import logging
 import multiprocessing
+import yaml # <-- Import yaml
 from multiprocessing import Queue
 from logging.handlers import QueueHandler
 from typing import List, Dict, Any
 
 from PySide6.QtCore import QObject, Signal
 
-from app.core.config import get_config
+from app.core.config import get_config, PROJECT_ROOT # <-- Import PROJECT_ROOT
 from app.core.ipc.triple_shared_buffer import TripleSharedBuffer
 from app.core.ipc.double_shared_buffer import DoubleSharedBuffer, FrameData
 from app.perception.capture_process import run_capture_process
@@ -231,6 +232,32 @@ class CalibrationWorker(QObject):
         super().__init__()
         self.config = config
 
+    def _update_active_profile_in_settings(self, new_profile_filename: str):
+        """
+        Safely loads settings.yaml, updates the active profile, and saves it back.
+        """
+        settings_path = PROJECT_ROOT / "configs" / "settings.yaml"
+        try:
+            with settings_path.open('r', encoding='utf-8') as f:
+                settings_data = yaml.safe_load(f) or {}
+
+            if settings_data.get("active_calibration_profile") == new_profile_filename:
+                logger.info(f"校准线程：active_calibration_profile in {settings_path.name} is already set to: {new_profile_filename}")
+                return
+
+            settings_data["active_calibration_profile"] = new_profile_filename
+            
+            with settings_path.open('w', encoding='utf-8') as f:
+                yaml.dump(settings_data, f, allow_unicode=True, sort_keys=False, indent=2)
+            
+            logger.info(f"校准线程：Updated active_calibration_profile in {settings_path.name} to: {new_profile_filename}")
+        
+        except FileNotFoundError:
+            logger.error(f"校准线程：Settings file not found: {settings_path}")
+        except Exception as e:
+            logger.error(f"校准线程：Error updating settings file: {e}", exc_info=True)
+
+
     def run(self):
         engine = None
         try:
@@ -248,7 +275,11 @@ class CalibrationWorker(QObject):
             basename = f"profile_{int(time.time())}"
             saved_path = manager.save(calibration_result, basename)
             logger.info(f"校准线程：成功保存校准文件: {saved_path}")
-            self.calibration_finished.emit(saved_path)
+
+            # Automatically update active_calibration_profile in settings.yaml
+            self._update_active_profile_in_settings(saved_path.name)
+            
+            self.calibration_finished.emit(str(saved_path))
 
         except Exception as e:
             logger.critical(f"校准过程中发生严重错误: {e}", exc_info=True)
@@ -286,6 +317,15 @@ class FrameDataWorker(QObject):
 
     def stop(self):
         self._is_stopped = True
+
+    def close(self):
+        """
+        显式关闭此 Worker 持有的共享内存连接。
+        """
+        if self.frame_data_buffer:
+            self.frame_data_buffer.close()
+            self.frame_data_buffer = None
+            logger.info("FrameDataWorker 已关闭其 DoubleSharedBuffer 连接。")
 
 
 class CommanderEventWorker(QObject):

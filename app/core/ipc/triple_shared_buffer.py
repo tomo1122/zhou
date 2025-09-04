@@ -168,6 +168,9 @@ class TripleSharedBuffer:
         **所有**使用此缓冲区的进程（包括创建者和附加者）在退出时都**必须**调用此方法。
         这不会销毁共享内存本身，只是断开当前进程的连接。
         """
+        self.np_latest_idx = None
+        self.np_arrays.clear()
+        
         if self.idx_shm:
             self.idx_shm.close()
         for shm in self.frame_shms:

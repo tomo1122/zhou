@@ -1,7 +1,5 @@
-mumu_base_path: "C:/software/MuMuPlayer-12.0"
-mumu_dll_path: "C:/software/MuMuPlayer-12.0/shell/sdk/external_renderer_ipc.dll"
-
-# 多开时需要指定index
-mumu_instance_index: 0 
-device_serial: "127.0.0.1:16384"
-mumu_window_title: "MuMu模拟器12"
+mumu_base_path: C:/software/MuMuPlayer-12.0
+mumu_dll_path: C:/software/MuMuPlayer-12.0/shell/sdk/external_renderer_ipc.dll
+mumu_instance_index: 0
+device_serial: 127.0.0.1:16384
+mumu_window_title: MuMu模拟器12

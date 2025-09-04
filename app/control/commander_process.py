@@ -244,12 +244,6 @@ class Commander:
         """
         logger.info(f"Commander 正在关闭 (当前状态: {self.state.name})...")
         if self.controller:
-            # 在关闭前，尝试恢复游戏运行状态，避免模拟器卡在暂停界面
-            if self.is_game_paused:
-                try:
-                    self.controller.toggle_pause()
-                except Exception as e:
-                    logger.warning(f"尝试恢复游戏暂停状态时出错: {e}")
             if hasattr(self.controller, 'close'):
                 self.controller.close()
         

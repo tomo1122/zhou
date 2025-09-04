@@ -64,7 +64,7 @@ class MainControlPanel(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("控制面板")
-        self.resize(500, 900)
+        self.resize(300, 600)
 
         self.backend_manager = BackendManager()
         self.is_running = False
@@ -272,6 +272,7 @@ class MainControlPanel(QMainWindow):
     def _stop_background_workers(self):
         if hasattr(self, 'frame_data_worker'):
             self.frame_data_worker.stop()
+            self.frame_data_worker.close()
             self.frame_data_thread.quit()
             self.frame_data_thread.wait()
         if hasattr(self, 'commander_worker'):
@@ -440,10 +441,32 @@ class MainControlPanel(QMainWindow):
     def _on_new_action_recorded(self, action):
         row_pos = self.record_table.rowCount()
         self.record_table.insertRow(row_pos)
-        self.record_table.setItem(row_pos, 0, QTableWidgetItem(str(action.get('trigger_frame', ''))))
-        self.record_table.setItem(row_pos, 1, QTableWidgetItem(action.get('action_type', '')))
-        self.record_table.setItem(row_pos, 2, QTableWidgetItem(json.dumps(action.get('params', {}))))
-        self.record_table.setItem(row_pos, 3, QTableWidgetItem(action.get('comment', '')))
+
+        # 1. Create all QTableWidgetItem instances
+        item_frame = QTableWidgetItem(str(action.get('trigger_frame', '')))
+        item_type = QTableWidgetItem(action.get('action_type', ''))
+        item_params = QTableWidgetItem(json.dumps(action.get('params', {})))
+        item_comment = QTableWidgetItem(action.get('comment', ''))
+
+        # 2. Make 'Action Type' and 'Parameters' columns read-only
+        # Column 1: Action Type
+        # We take the default flags and remove the 'ItemIsEditable' flag
+        item_type.setFlags(item_type.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        
+        # Column 2: Parameters
+        item_params.setFlags(item_params.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        
+        # 3. (Optional but recommended) Give a visual cue that they are read-only
+        read_only_color = QColor(240, 240, 240) # A light gray
+        item_type.setBackground(read_only_color)
+        item_params.setBackground(read_only_color)
+
+        # 4. Set the items in the table
+        self.record_table.setItem(row_pos, 0, item_frame)
+        self.record_table.setItem(row_pos, 1, item_type)
+        self.record_table.setItem(row_pos, 2, item_params)
+        self.record_table.setItem(row_pos, 3, item_comment)
+
         self.record_table.scrollToBottom()
 
     def _get_actions_from_table(self):
@@ -467,6 +490,8 @@ class MainControlPanel(QMainWindow):
     def _on_calibration_finished(self, saved_path):
         self.calibrate_progress_bar.setValue(100)
         QMessageBox.information(self, "成功", f"校准完成")
+        self.backend_manager.reload_config() 
+        self.append_log("配置已因校准完成而自动重新加载。") 
         self._finish_calibration()
 
     def _on_calibration_failed(self, error_msg):

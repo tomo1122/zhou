@@ -1,28 +1,15 @@
 [project]
 name = "zhou-v2"
-version = "0.2.0"
+version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = "~=3.10"
+requires-python = ">=3.13"
 dependencies = [
-    "numba>=0.61.2",
-    "numpy>=2.2.6",
-    "pillow>=11.3.0",
+    "numpy>=2.3.2",
     "pydantic>=2.11.7",
     "pydirectinput>=1.0.4",
     "pynput>=1.8.1",
     "pyside6>=6.9.2",
     "pywin32>=311",
     "pyyaml>=6.0.2",
-]
-
-[dependency-groups]
-dev = [
-    "pytest>=8.4.1",
-]
-
-[tool.pytest.ini_options]
-pythonpath = ["."]
-markers = [
-    "performance: marks tests as performance tests (slow to run)"
 ]

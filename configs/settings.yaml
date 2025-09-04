@@ -1,4 +1,3 @@
 fps: 60
 perf_test_duration: 10.0
-# 指定Ruler进程加载的校准文件
-active_calibration_profile: "profile_1756910598_30f_1920x1080.json"
+active_calibration_profile: profile_1757024839_30f_1920x1080.json

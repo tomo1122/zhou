@@ -1,0 +1,50 @@
+- trigger_frame: 31
+  actions:
+  - action_type: deploy
+    params:
+      direction: right
+      end_pos:
+      - 1351
+      - 244
+      start_pos:
+      - 263
+      - 976
+    comment: '111'
+- trigger_frame: 181
+  actions:
+  - action_type: skill
+    params:
+      pos:
+      - 1222
+      - 229
+- trigger_frame: 391
+  actions:
+  - action_type: deploy
+    params:
+      direction: right
+      end_pos:
+      - 1418
+      - 572
+      start_pos:
+      - 466
+      - 989
+    comment: 能天使
+- trigger_frame: 537
+  actions:
+  - action_type: skill
+    params:
+      pos:
+      - 1333
+      - 595
+- trigger_frame: 721
+  actions:
+  - action_type: deploy
+    params:
+      direction: right
+      end_pos:
+      - 1372
+      - 312
+      start_pos:
+      - 265
+      - 984
+    comment: 大黄狗
