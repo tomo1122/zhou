@@ -15,6 +15,7 @@ class FrameData(ctypes.Structure):
         ("total_frames", ctypes.c_longlong),
         ("logical_frame", ctypes.c_int),
         ("cycle_index", ctypes.c_int),
+        ("total_frames_in_cycle", ctypes.c_int),
         ("timestamp", ctypes.c_double),
     ]
 
@@ -112,6 +113,7 @@ class DoubleSharedBuffer:
                     view.total_frames = -1
                     view.logical_frame = -1
                     view.cycle_index = -1
+                    view.total_frames_in_cycle = -1
                     view.timestamp = 0.0
 
         except Exception as e:
@@ -124,7 +126,7 @@ class DoubleSharedBuffer:
             raise
 
 
-    def set(self, total_frames: int, logical_frame: int, cycle_index: int, timestamp: float):
+    def set(self, total_frames: int, logical_frame: int, cycle_index: int, total_frames_in_cycle: int, timestamp: float):
         """
         [生产者调用] 写入新状态到备用缓冲区，然后原子性地切换索引。
         """
@@ -133,6 +135,7 @@ class DoubleSharedBuffer:
         write_view.total_frames = total_frames
         write_view.logical_frame = logical_frame
         write_view.cycle_index = cycle_index
+        write_view.total_frames_in_cycle = total_frames_in_cycle
         write_view.timestamp = timestamp
 
         # 2. 原子性地更新最新索引，让消费者看到新数据
@@ -157,6 +160,7 @@ class DoubleSharedBuffer:
             latest_view.total_frames,
             latest_view.logical_frame,
             latest_view.cycle_index,
+            latest_view.total_frames_in_cycle,
             latest_view.timestamp
         )
 

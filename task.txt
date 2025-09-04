@@ -1,0 +1,15 @@
+**Prompt to AI Agent (Fix & Refine):**
+"你之前生成的 UI 代码非常棒！现在我们需要进行一些完善。
+
+**任务 1: 完善运行模式的 UI 更新**
+请修改 `ui/main_ui.py` 中的 `_on_commander_event` 方法。它需要根据接收到的事件来更新 `self.action_list` (QListWidget)。
+*   当接收到 `state_change` 事件时，清空列表并显示新的状态。
+*   当接收到 `executing_action` 事件时，从 `self.backend_manager.plan` 中获取当前和后续的动作信息，并更新列表，高亮显示当前正在执行的动作。
+
+**任务 2: 修复悬浮窗的数据流**
+悬浮窗需要显示 `逻辑帧: x/y` 中的总数 `y`，但这个数据目前没有传递过来。请完成以下修改：
+1.  在 `app/core/ipc/double_shared_buffer.py` 的 `FrameData` 结构体中，添加一个 `total_frames_in_cycle` (c_int) 字段。
+2.  在 `app/analysis/ruler_process.py` 中，当调用 `frame_buffer.set()` 时，从 `analyzer` 的校准配置中获取当前周期的总帧数，并传递给这个新字段。你可能需要稍微修改 `cost_bar_analyzer.py` 来方便地获取这个值。
+3.  确认 `ui/main_ui.py` 中 `FloatingOverlay` 的 `update_data` 方法现在可以正确工作。
+
+请完成以上两项任务。"

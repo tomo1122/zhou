@@ -12,8 +12,8 @@ from app.analysis.vision_utils import find_cost_bar_roi, get_raw_filled_pixel_wi
 logger = logging.getLogger(__name__)
 
 
-# 定义分析结果的数据结构: (总帧数, 逻辑帧, 周期计数, 时间戳)
-AnalysisResult = Tuple[int, int, int, float]
+# 定义分析结果的数据结构: (总帧数, 逻辑帧, 周期计数, 周期内总帧数, 时间戳)
+AnalysisResult = Tuple[int, int, int, int, float]
 
 
 class CostBarAnalyzer:
@@ -30,6 +30,7 @@ class CostBarAnalyzer:
 
         # 2. 初始化分析所需的状态变量
         self.roi: Optional[Tuple[int, int, int]] = None
+        self.total_frames_in_cycle = -1
         self.reset_state()
     
 
@@ -93,33 +94,26 @@ class CostBarAnalyzer:
             self.roi = find_cost_bar_roi(width, height)
 
         pixel_width = get_raw_filled_pixel_width_np(frame, self.roi)
-        # 未检测到费用条
         if pixel_width is None:
             logger.debug(f'未检测到费用条')
             return None
         
-        # （不知道有什么用，我的校准文件总是只有一个模型。但是加进去没啥影响，那就不管。）
         num_profiles = len(self.active_profile['profiles'])
         current_profile_index = self.cycle_counter % num_profiles
         active_profile_model = self.active_profile['profiles'][current_profile_index]
-        # 获取当前的逻辑帧
         logical_frame = self._get_logical_frame(pixel_width, active_profile_model)
         
-        # 仅在逻辑帧发生变化时才继续处理和发布
         if logical_frame is not None and logical_frame != self.previous_logical_frame:
-            # 一个循环多少帧
-            total_frames_in_cycle = active_profile_model.get('total_frames', 30)
+            self.total_frames_in_cycle = active_profile_model.get('total_frames', 30)
 
-            # 翻圈检测：当逻辑帧从周期末尾跳到周期开头时
-            if self.previous_logical_frame > total_frames_in_cycle * 0.8 and logical_frame < total_frames_in_cycle * 0.2:
-                self.cycle_base_frames += total_frames_in_cycle
+            if self.previous_logical_frame > self.total_frames_in_cycle * 0.8 and logical_frame < self.total_frames_in_cycle * 0.2:
+                self.cycle_base_frames += self.total_frames_in_cycle
                 self.cycle_counter += 1
             
-            # 1-30 显示
             current_total_frames = self.cycle_base_frames + logical_frame + 1
             self.previous_logical_frame = logical_frame
             
-            return (current_total_frames, logical_frame, self.cycle_counter, time.time())
+            return (current_total_frames, logical_frame, self.cycle_counter, self.total_frames_in_cycle, time.time())
             
         return None
 

@@ -1,0 +1,52 @@
+- trigger_frame: 6
+  actions:
+  - action_type: deploy
+    params:
+      start_pos:
+      - 82
+      - 982
+      end_pos:
+      - 866
+      - 798
+      direction: right
+- trigger_frame: 96
+  actions:
+  - action_type: skill
+    params:
+      pos:
+      - 708
+      - 798
+- trigger_frame: 391
+  actions:
+  - action_type: deploy
+    params:
+      start_pos:
+      - 83
+      - 988
+      end_pos:
+      - 1318
+      - 777
+      direction: up
+  - action_type: skill
+    params:
+      pos:
+      - 1200
+      - 814
+  - action_type: deploy
+    params:
+      start_pos:
+      - 95
+      - 976
+      end_pos:
+      - 1158
+      - 649
+      direction: down
+  - action_type: deploy
+    params:
+      start_pos:
+      - 1832
+      - 964
+      end_pos:
+      - 1433
+      - 629
+      direction: left

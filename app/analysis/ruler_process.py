@@ -66,12 +66,13 @@ def run_ruler_process(
                 logger.debug(analysis_result)
                 # 5. 如果有有效结果，则通过 IPC 发布
                 if analysis_result:
-                    total_frames, logical_frame, cycle_index, timestamp = analysis_result
+                    total_frames, logical_frame, cycle_index, total_frames_in_cycle, timestamp = analysis_result
                     
                     frame_buffer.set(
                         total_frames=total_frames,
                         logical_frame=logical_frame,
                         cycle_index=cycle_index,
+                        total_frames_in_cycle=total_frames_in_cycle,
                         timestamp=timestamp
                     )
             else:

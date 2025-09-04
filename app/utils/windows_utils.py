@@ -109,7 +109,6 @@ class WindowHelper:
             width, height = right - x, bottom - y
             if width > 0 and height > 0:
                 self.render_area = (x, y, width, height)
-                logger.debug(f"渲染区域更新: {self.render_area}")
                 return True
             return False
         except win32gui.error:

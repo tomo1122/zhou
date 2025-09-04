@@ -1,11 +1,14 @@
+import time
 import signal
 import logging
+import multiprocessing
 
 import yaml
 
 from dataclasses import dataclass
 from collections import defaultdict
 from typing import Dict, List, Any, Optional, Tuple
+from logging.handlers import QueueHandler
 from multiprocessing.synchronize import Event as SyncEvent
 
 from pynput import mouse, keyboard
@@ -32,10 +35,11 @@ class ActionRecorder:
     负责监听用户输入，关联帧数，并记录为结构化动作。
     """
 
-    def __init__(self, config: MergedConfig, frame_buffer: DoubleSharedBuffer, output_plan_path: str):
+    def __init__(self, config: MergedConfig, frame_buffer: DoubleSharedBuffer, output_plan_path: str, event_queue: Optional[multiprocessing.Queue] = None):
         self.config = config
         self.frame_buffer = frame_buffer
         self.output_plan_path = output_plan_path
+        self.event_queue = event_queue
         self.target_w = 1920
         self.target_h = 1080
         # 干员栏的相对区域
@@ -45,8 +49,7 @@ class ActionRecorder:
             self.target_w * 1,
             self.target_h * 1
         ]
-        # 
-        
+
         # 使用 WindowHelper 来处理窗口交互
         self.win_helper = WindowHelper(
             main_window_title = config.mumu_window_title,
@@ -57,10 +60,12 @@ class ActionRecorder:
         self.recorded_actions: List[Dict[str, Any]] = []
         self.mouse_listener = None
         self.keyboard_listener = None
+        self.mouse_controller = mouse.Controller()
         self.is_running = False
         self._drag_info = None
 
-    def start(self, stop_event: SyncEvent):
+
+    def start(self):
         """启动监听器并开始录制。"""
         if self.is_running:
             return
@@ -73,18 +78,12 @@ class ActionRecorder:
             return
 
         self.mouse_listener = mouse.Listener(on_click=self._on_click)
-        # 暂时只关心鼠标点击，键盘可后续扩展
-        # self.keyboard_listener = keyboard.Listener(on_press=self._on_press)
+        self.keyboard_listener = keyboard.Listener(on_press=self._on_press)
         
         self.mouse_listener.start()
-        # self.keyboard_listener.start()
+        self.keyboard_listener.start()
         self.is_running = True
-        logger.info(f"已开始监听 '{self.win_helper.main_window_title}' 内的鼠标操作。")
-        logger.info("在主窗口中按 Ctrl+C 或关闭程序来停止录制并保存。")
-
-        # 阻塞直到 stop_event 被设置
-        stop_event.wait()
-        self.stop()
+        logger.info(f"已开始监听 '{self.win_helper.main_window_title}' 内的鼠标和键盘操作。")
 
     def stop(self):
         """停止监听器并保存录制的动作。"""
@@ -93,8 +92,8 @@ class ActionRecorder:
             
         if self.mouse_listener:
             self.mouse_listener.stop()
-        # if self.keyboard_listener:
-        #     self.keyboard_listener.stop()
+        if self.keyboard_listener:
+            self.keyboard_listener.stop()
             
         self.is_running = False
         logger.info("已停止监听。")
@@ -111,32 +110,9 @@ class ActionRecorder:
         return self.frame_buffer.get()
 
     def _on_click(self, x: int, y: int, button: mouse.Button, pressed: bool):
-        """
-        鼠标点击事件的回调处理函数
-        
-        宏 deploy:
-        deploy第一步
-            press事件：
-                1. 暂停状态下右键按下  (_is_in_op_bar==True)
-                2. 运行状态下左键按下  (_is_in_op_bar==True)
-            release事件：
-                1. 暂停状态下右键释放  (_is_in_op_bar==False)
-                2. 暂停状态下左键释放  (_is_in_op_bar==False)
-
-        deploy第二步
-            press事件
-                1. start_pos在第一步终点附近
-            release事件
-                1. 用于判断方向
-
-        宏 skill
-            - 暂停状态下鼠标侧键
-        
-        宏 recall
-            - 暂停状态下鼠标侧键 
-        """
         # 只在目标窗口是前景窗口时才记录
-        if not self.win_helper.is_foreground_window():
+        is_fg = self.win_helper.is_foreground_window()
+        if not is_fg:
             return
 
         self.win_helper.update_render_area()
@@ -145,11 +121,51 @@ class ActionRecorder:
             return
 
         frame_data = self._get_current_frame_data()
-
         if pressed:
             self._handle_press(button, virtual_pos, frame_data)
         else:
-            self._handle_release(button, virtual_pos, frame_data)
+            if button in [mouse.Button.left, mouse.Button.right]:
+                self._handle_release(button, virtual_pos, frame_data)
+            elif button == mouse.Button.x2:
+                self._record_action(frame_data.total_frames, "skill", {"pos": list(virtual_pos)})
+                logger.info(f"[帧: {frame_data.total_frames}] skill: {virtual_pos}")
+                return
+            elif button == mouse.Button.x1:
+                self._record_action(frame_data.total_frames, "recall", {"pos": list(virtual_pos)})
+                logger.info(f"[帧: {frame_data.total_frames}] recall: {virtual_pos}")
+                return 
+
+    def _on_press(self, key: keyboard.Key):
+        """键盘按键事件的回调处理函数"""
+        # 只在目标窗口是前景窗口时才记录
+        if not self.win_helper.is_foreground_window():
+            return
+
+        try:
+            key_char = key.char
+        except AttributeError:
+            return
+
+        # 获取通用信息
+        frame_data = self._get_current_frame_data()
+        self.win_helper.update_render_area()
+        current_mouse_pos = self.mouse_controller.position
+        virtual_pos = self.win_helper.transform_screen_to_virtual(current_mouse_pos)
+        if not virtual_pos:
+            logger.warning(f"按键 '{key_char}' 时鼠标在窗口外，不记录动作。")
+            return
+        
+        # 1. 手动撤离: 按 'q'
+        if key_char == 'q':
+            self._record_action(frame_data.total_frames, "recall", {"pos": list(virtual_pos)})
+            logger.info(f"[帧: {frame_data.total_frames}] recall (q): {virtual_pos}")
+            return
+            
+        # 2. 手动技能: 按 'e'
+        if key_char == 'e':
+            self._record_action(frame_data.total_frames, "skill", {"pos": list(virtual_pos)})
+            logger.info(f"[帧: {frame_data.total_frames}] skill (e): {virtual_pos}")
+            return
 
     def _record_action(self, frame: int, action_type: str, params: dict):
         action = {
@@ -159,6 +175,8 @@ class ActionRecorder:
         }
         self.recorded_actions.append(action)
         logger.info(f"动作录制: {action}")
+        if self.event_queue:
+            self.event_queue.put(action)
 
     def _handle_press(self, button: mouse.Button, pos: Tuple[int, int], frame_data: FrameData):
         """处理鼠标按下事件"""
@@ -181,51 +199,44 @@ class ActionRecorder:
                         
     def _handle_release(self, button: mouse.Button, pos: Tuple[int, int], frame_data: FrameData):
         """处理鼠标释放事件"""
-        # 部署 step1 结束：左/右键释放，且不在干员栏
-        if button in [mouse.Button.left, mouse.Button.right] \
-           and isinstance(self._drag_info, DeployAction) \
-           and not self._is_in_op_bar(pos):
+        # 仅仅处理拖拽事件
+        if not isinstance(self._drag_info, DeployAction):
+            return
+        
+        # 部署 step2 完成 (最高优先级判断): 左键释放，且方向选择已开始
+        if button == mouse.Button.left and self._drag_info.left_start_pos:
+            sx, sy = self._drag_info.left_start_pos
+            ex, ey = pos
+            dx, dy = ex - sx, ey - sy
+            if abs(dx) > abs(dy):
+                self._drag_info.direction = "right" if dx > 0 else "left"
+            else:
+                self._drag_info.direction = "down" if dy > 0 else "up"
 
+            # 确保 end_pos 存在
+            if not self._drag_info.end_pos:
+                self._drag_info.end_pos = tuple(pos)
+                logger.warning(f"部署 step1 的 end_pos 丢失，使用当前位置 {pos} 作为备用。")
+                
+            self._record_action(
+                self._drag_info.trigger_frame,
+                "deploy",
+                {
+                    "start_pos": list(self._drag_info.start_pos),
+                    "end_pos": list(self._drag_info.end_pos),
+                    "direction": self._drag_info.direction
+                }
+            )
+            logger.info(f"[帧: {frame_data.total_frames}] 部署-方向: {self._drag_info.direction}")
+            self._drag_info = None  # 完成部署，清空状态
+            return
+        
+        # 部署 step1 结束: 左/右键释放，且不在干员栏
+        if button in [mouse.Button.left, mouse.Button.right] and not self._is_in_op_bar(pos):
             self._drag_info.end_pos = tuple(pos)
             logger.info(f"[帧: {frame_data.total_frames}] 部署结束点: {pos}")
             return
 
-        # 部署 step2 完成：左键释放，计算方向
-        if button == mouse.Button.left and isinstance(self._drag_info, DeployAction):
-            if self._drag_info.left_start_pos:
-                sx, sy = self._drag_info.left_start_pos
-                ex, ey = pos
-                dx, dy = ex - sx, ey - sy
-                if abs(dx) > abs(dy):
-                    self._drag_info.direction = "right" if dx > 0 else "left"
-                else:
-                    self._drag_info.direction = "down" if dy > 0 else "up"
-
-                self._drag_info.end_pos = self._drag_info.end_pos or tuple(pos)
-                self._record_action(
-                    self._drag_info.trigger_frame,
-                    "deploy",
-                    {
-                        "start_pos": list(self._drag_info.start_pos),
-                        "end_pos": list(self._drag_info.end_pos),
-                        "direction": self._drag_info.direction
-                    }
-                )
-                logger.info(f"[帧: {frame_data.total_frames}] 部署-方向: {self._drag_info.direction}")
-                self._drag_info = None
-            return
-
-        # 宏 skill
-        if button == mouse.Button.x2:
-            self._record_action(frame_data.total_frames, "skill", {"pos": list(pos)})
-            logger.info(f"[帧: {frame_data.total_frames}] skill: {pos}")
-            return
-
-        # 宏 recall
-        if button == mouse.Button.x1:
-            self._record_action(frame_data.total_frames, "recall", {"pos": list(pos)})
-            logger.info(f"[帧: {frame_data.total_frames}] recall: {pos}")
-            return
 
     def _save_plan(self):
         """将录制的动作格式化并保存到YAML文件。"""
@@ -258,11 +269,27 @@ class ActionRecorder:
             logger.error(f"保存作战计划失败: {e}", exc_info=True)
 
 
+def _setup_process_logging(log_queue: multiprocessing.Queue):
+    """为当前子进程配置日志，将所有日志发送到队列。"""
+    if log_queue:
+        root_logger = logging.getLogger()
+        # 移除所有可能存在的默认 handlers
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+        
+        # 添加队列 handler
+        queue_handler = QueueHandler(log_queue)
+        root_logger.addHandler(queue_handler)
+        # 设置子进程的日志级别，确保 DEBUG 日志能被捕获
+        root_logger.setLevel(logging.DEBUG)
+
 def run_recorder_process(
     config: MergedConfig,
     frame_ipc_params: Dict,
     output_plan_name: str,
-    stop_event: SyncEvent
+    stop_event: SyncEvent,
+    event_queue: Optional[multiprocessing.Queue] = None,
+    log_queue: Optional[multiprocessing.Queue] = None
 ):
     """
     Recorder 进程的入口函数。
@@ -270,8 +297,10 @@ def run_recorder_process(
     """
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     logger.info("Recorder 进程已启动。")
-    
+
+    _setup_process_logging(log_queue)
     frame_buffer = None
+    recorder = None
     try:
         # 1. 准备输出路径
         plans_dir = config.project_root / "plans"
@@ -284,12 +313,18 @@ def run_recorder_process(
         frame_buffer = DoubleSharedBuffer(**frame_ipc_params, create=False)
         
         # 3. 初始化并运行录制器
-        recorder = ActionRecorder(config, frame_buffer, str(output_path))
-        recorder.start(stop_event)
+        recorder = ActionRecorder(config, frame_buffer, str(output_path), event_queue)
+        recorder.start()
+
+        # 4. 等待停止信号
+        while not stop_event.is_set():
+            time.sleep(0.1)
 
     except Exception as e:
         logger.critical(f"Recorder 进程中发生未处理的异常: {e}", exc_info=True)
     finally:
+        if recorder:
+            recorder.stop()
         if frame_buffer:
             frame_buffer.close()
         logger.info("Recorder 进程已关闭。")

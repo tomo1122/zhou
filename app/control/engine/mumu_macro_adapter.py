@@ -164,7 +164,7 @@ class MumuMacroController(BaseController):
 
         logger.debug(f"部署-放置: {start_pos} -> {end_pos} (屏幕: {screen_start} -> {screen_end})")
         pydirectinput.moveTo(*screen_start)
-        time.sleep(self.action_delay)
+        time.sleep(0.5)
         pydirectinput.mouseDown(button='right')
         time.sleep(self.action_delay)
         pydirectinput.moveTo(*screen_end, duration=0.5)
@@ -224,37 +224,50 @@ class MumuMacroController(BaseController):
 
 
     def toggle_pause(self):
-        self._activate_window()
-        logger.debug("切换暂停 (空格)")
-        pydirectinput.press('space')
+        # 发送空格键 支持后台发送
+        vk_code = 0x20
+        scan_code = win32api.MapVirtualKey(vk_code, 0)
+        lParam_down = (scan_code << 16) | 1
+        lParam_up = (scan_code << 16) | 0xC0000001
+        win32gui.PostMessage(self.main_hwnd, win32con.WM_KEYDOWN, vk_code, lParam_down)
+        win32gui.PostMessage(self.main_hwnd, win32con.WM_KEYUP, vk_code, lParam_up)
 
 
     def next_frame(self, **kwargs):
-        self._activate_window()
-        delay = kwargs.get("delay", 13) 
-        key = None
+        delay = kwargs.get("delay", 13)
+        key_char = None
+        vk_code = None
 
         if delay == 99:
-            key = "y"
+            key_char = "y"
+            vk_code = 0x59  # 'Y' 键的虚拟键码
         elif delay == 33:
-            key = "t"
+            key_char = "t"
+            vk_code = 0x54  # 'T' 键的虚拟键码
         elif delay == 12:
-            key = "r"
+            key_char = "r"
+            vk_code = 0x52  # 'R' 键的虚拟键码
         else:
             raise RuntimeError(f"mumu_macro_adapter 收到了一个不合法的delay： {delay}")
 
-        logger.debug(f"下一帧 (delay={delay}, key='{key}')")
-        pydirectinput.press(key)
+        logger.debug(f"下一帧 (delay={delay}, key='{key_char}') - 后台发送")
+        
+        # 检查窗口句柄是否存在
+        if not self.main_hwnd:
+             logger.error("无法发送下一帧指令，因为主窗口句柄丢失。")
+             # 可以考虑重新连接或抛出异常
+             raise IOError("控制器未连接或窗口已关闭。")
 
+        # 使用 PostMessage 后台发送按键消息
+        scan_code = win32api.MapVirtualKey(vk_code, 0)
+        lParam_down = (scan_code << 16) | 1
+        lParam_up = (scan_code << 16) | 0xC0000001
+        
+        win32gui.PostMessage(self.main_hwnd, win32con.WM_KEYDOWN, vk_code, lParam_down)
+        win32gui.PostMessage(self.main_hwnd, win32con.WM_KEYUP, vk_code, lParam_up)
 
 if __name__ == "__main__":
-    maatouch = MumuMacroController()
-    maatouch.connect()
-
-    # maatouch.deploy([100, 1000], [1090, 600], 'left')
-    maatouch.deploy([280, 1000], [1250, 600], 'left')
-    maatouch.deploy([450, 1000], [1425, 560], 'left')
-    maatouch.deploy([790, 1000], [1600, 600], 'left')
-    maatouch.deploy([950, 1000], [1090, 350], 'left')
-    maatouch.deploy([1140, 1000], [1250, 350], 'left')
-    maatouch.deploy([1300, 1000], [1420, 350], 'left')
+    print('start')
+    mumu_control = MumuMacroController()
+    mumu_control.connect()
+    mumu_control.toggle_pause()
