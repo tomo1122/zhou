@@ -6,10 +6,10 @@ import contextlib
 import yaml
 
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QTabWidget, QTextEdit,
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QTextEdit,
     QComboBox, QPushButton, QLineEdit, QTableWidget, QProgressBar, QListWidget,
     QTableWidgetItem, QAbstractItemView, QHeaderView, QLabel, QMessageBox, QFormLayout, QGroupBox, QScrollArea,
-    QListWidgetItem # Added QListWidgetItem
+    QListWidgetItem
 )
 from PySide6.QtGui import QScreen, QMouseEvent, QCloseEvent, QColor, QTextOption, QFont # Added QFont
 from PySide6.QtCore import Qt, QPoint, QThread, Signal
@@ -105,8 +105,15 @@ class MainControlPanel(QMainWindow):
 
     def _create_run_tab(self):
         layout = QVBoxLayout(self.run_tab)
+        run_top_layout = QHBoxLayout()
         self.plan_selector = QComboBox()
-        layout.addWidget(self.plan_selector)
+        self.refresh_plans_button = QPushButton("🔄")
+        self.refresh_plans_button.setToolTip("刷新作战计划列表")
+        self.refresh_plans_button.setFixedWidth(40)
+        run_top_layout.addWidget(self.plan_selector)
+        run_top_layout.addWidget(self.refresh_plans_button)
+        layout.addLayout(run_top_layout)
+
         self.start_run_button = QPushButton("▶️ 开始运行")
         layout.addWidget(self.start_run_button)
 
@@ -244,13 +251,33 @@ class MainControlPanel(QMainWindow):
         self.log_thread.started.connect(self.log_worker.run)
         self.log_thread.start()
 
-    def _populate_plans(self):
+    def _populate_plans(self, select_plan_name=None):
+        """
+        Refreshes the plan selector dropdown.
+
+        Args:
+            select_plan_name (str, optional): If provided, this plan will be
+                                              automatically selected after refresh.
+        """
         try:
+            # Store the currently selected plan to restore it if possible
+            current_selection = self.plan_selector.currentText()
+            
+            self.plan_selector.clear()
             plans_dir = PROJECT_ROOT / 'plans'
-            if os.path.exists(plans_dir):
-                for f in os.listdir(plans_dir):
-                    if f.endswith('.yaml'):
-                        self.plan_selector.addItem(f.replace('.yaml', ''))
+            if plans_dir.is_dir():
+                plan_files = sorted([f.replace('.yaml', '') for f in os.listdir(plans_dir) if f.endswith('.yaml')])
+                self.plan_selector.addItems(plan_files)
+
+            # Determine what to select after refresh
+            target_selection = select_plan_name or current_selection
+            
+            # Find and set the index for the target selection
+            index_to_select = self.plan_selector.findText(target_selection)
+            if index_to_select != -1:
+                self.plan_selector.setCurrentIndex(index_to_select)
+            
+            self.append_log("作战计划列表已刷新。")
         except Exception as e:
             self.append_log(f"无法加载计划列表: {e}")
 
@@ -260,6 +287,7 @@ class MainControlPanel(QMainWindow):
         self.start_calibrate_button.clicked.connect(self._handle_calibrate_clicked)
         self.save_settings_button.clicked.connect(self._save_settings)
         self.tabs.currentChanged.connect(self._on_tab_changed)
+        self.refresh_plans_button.clicked.connect(self._populate_plans)
 
     def _start_background_workers(self):
         self.frame_data_thread = QThread()
@@ -346,7 +374,6 @@ class MainControlPanel(QMainWindow):
             QMessageBox.warning(self, "提示", "请输入计划文件名。")
             return
 
-        # Get the final actions from the table, including remarks
         final_actions = self._get_actions_from_table()
         self.backend_manager.save_final_recorded_plan(plan_name, final_actions)
 
@@ -355,6 +382,11 @@ class MainControlPanel(QMainWindow):
         self.is_recording = False
         self.start_record_button.setText("⏺️ 开始录制")
         self._update_ui_states()
+
+        # After saving, refresh the plan list and select the new plan
+        self._populate_plans(select_plan_name=plan_name)
+        # Switch to the run tab for convenience
+        self.tabs.setCurrentWidget(self.run_tab)
 
     def _handle_calibrate_clicked(self):
         self.is_calibrating = True
