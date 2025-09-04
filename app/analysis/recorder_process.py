@@ -3,8 +3,9 @@ import logging
 
 import yaml
 
+from dataclasses import dataclass
 from collections import defaultdict
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional, Tuple
 from multiprocessing.synchronize import Event as SyncEvent
 
 from pynput import mouse, keyboard
@@ -15,6 +16,15 @@ from app.utils.windows_utils import WindowHelper
 
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class DeployAction:
+    trigger_frame: int
+    start_pos: Tuple[int, int]
+    end_pos: Optional[Tuple[int, int]] = None
+    left_start_pos: Optional[Tuple[int, int]] = None
+    direction: Optional[str] = None
 
 
 class ActionRecorder:
@@ -101,114 +111,121 @@ class ActionRecorder:
         return self.frame_buffer.get()
 
     def _on_click(self, x: int, y: int, button: mouse.Button, pressed: bool):
-        """鼠标点击事件的回调处理函数。"""
+        """
+        鼠标点击事件的回调处理函数
+        
+        宏 deploy:
+        deploy第一步
+            press事件：
+                1. 暂停状态下右键按下  (_is_in_op_bar==True)
+                2. 运行状态下左键按下  (_is_in_op_bar==True)
+            release事件：
+                1. 暂停状态下右键释放  (_is_in_op_bar==False)
+                2. 暂停状态下左键释放  (_is_in_op_bar==False)
+
+        deploy第二步
+            press事件
+                1. start_pos在第一步终点附近
+            release事件
+                1. 用于判断方向
+
+        宏 skill
+            - 暂停状态下鼠标侧键
+        
+        宏 recall
+            - 暂停状态下鼠标侧键 
+        """
         # 只在目标窗口是前景窗口时才记录
         if not self.win_helper.is_foreground_window():
             return
-        # 获取最新的窗口位置和大小
-        self.win_helper.update_render_area()
 
-        # 安卓模拟器 1920*1080 格式的坐标
+        self.win_helper.update_render_area()
         virtual_pos = self.win_helper.transform_screen_to_virtual((x, y))
         if not virtual_pos:
             return
-        # 从内存读取到的帧数
+
         frame_data = self._get_current_frame_data()
-        
 
-        # 宏deploy的第一步：右键拖拽干员到指定位置
-        # 右键拖拽：
-        #   1. 起点坐标在干员栏内
-        #   2. 终点坐标在干员栏外
-        if button == mouse.Button.right:
-            if pressed:
-                # 按下起点在干员栏内 （可能是部署动作）
-                if self._is_in_op_bar(virtual_pos):
-                    self._drag_info = {
-                            "trigger_frame": frame_data.total_frames,
-                            "action_type": "deploy",
-                            "params": {
-                                "start_pos": list(virtual_pos),
-                                "end_pos": None
-                            }
-                        }
-                    logger.info(f"[帧: {frame_data.total_frames}] 检测到部署起始点: {virtual_pos}")
-                # 按下起点不在干员栏内
-                else:
-                    pass
-            else:
-                # 释放终点在干员栏外 （部署动作）
-                if not self._is_in_op_bar(virtual_pos):
-                    if self._drag_info:
-                        self._drag_info['params']['end_pos'] = list(virtual_pos)
-                        logger.info(f"[帧: {frame_data.total_frames}] 检测到部署结束点: {virtual_pos}")
-                # 释放终点在干员栏内 （无效动作）
-                else:
-                    if self._drag_info:
-                        self._drag_info = None
+        if pressed:
+            self._handle_press(button, virtual_pos, frame_data)
+        else:
+            self._handle_release(button, virtual_pos, frame_data)
 
+    def _record_action(self, frame: int, action_type: str, params: dict):
+        action = {
+            "trigger_frame": frame,
+            "action_type": action_type,
+            "params": params
+        }
+        self.recorded_actions.append(action)
+        logger.info(f"动作录制: {action}")
 
-        # 宏deploy的第二步：选择干员方向
-        # 左键拖拽
-        #   1. 起点坐标在 self._drag_info['params']['end_pos']附近
-        #   2. 根据终点坐标判断方向
-        elif button == mouse.Button.left:
-            if pressed:
-                # 第一步已经完成 并且起点坐标满足要求 (在1920*1080分辨率下，大概130*130的方块)
-                if self._drag_info:
-                    if abs(virtual_pos[0] - self._drag_info['params']['end_pos'][0]) < (self.target_w * 0.06) and \
-                       abs(virtual_pos[1] - self._drag_info['params']['end_pos'][1]) < (self.target_h * 0.12):
-                        self._drag_info['left_start_pos'] = list(virtual_pos)
-                        logger.info(f"[帧: {frame_data.total_frames}] 检测到部署-方向选择 起始点: {virtual_pos}")
-                    # 有右键拖拽的记录，但是起点不在self._drag_info['params']['end_pos']附近
-                    else:
-                        pass
-                # 不是 deploy 动作
-                else:
-                    pass
-            else:
-                if self._drag_info:
-                    # 计算方向
-                    start_x, start_y = self._drag_info['left_start_pos']
-                    end_x, end_y = virtual_pos
-                    dx = end_x - start_x
-                    dy = end_y - start_y
-                    if abs(dx) > abs(dy):
-                        direction = "right" if dx > 0 else "left"
-                    else:
-                        direction =  "down" if dy > 0 else "up"
-                    self._drag_info['params']['direction'] = direction
-                    logger.info(f"[帧: {frame_data.total_frames}] 检测到部署-方向: {direction}")
-                    # 记录并之后清空状态
-                    self.recorded_actions.append(self._drag_info)
-                    logger.info(f"动作录制: {self._drag_info}")
-                    self._drag_info = None
-                # 不是 deploy 动作
-                else:
-                    pass
-                    
-                
-        # 宏skill：通过鼠标侧键
-        elif button == mouse.Button.x2 and not pressed:
-            action = {
-                "trigger_frame": frame_data.total_frames,
-                "action_type": "skill",
-                "params": {"pos": list(virtual_pos)}
-            }
-            self.recorded_actions.append(action)
-            logger.info(f"动作录制: {action}")
+    def _handle_press(self, button: mouse.Button, pos: Tuple[int, int], frame_data: FrameData):
+        """处理鼠标按下事件"""
+        # 部署 step1：左/右键，起点在干员栏
+        if button in [mouse.Button.left, mouse.Button.right] and self._is_in_op_bar(pos):
+            self._drag_info = DeployAction(
+                trigger_frame=frame_data.total_frames,
+                start_pos=tuple(pos),
+            )
+            logger.info(f"[帧: {frame_data.total_frames}] 部署起始点: {pos}")
+            return
 
-
-        # 宏recall：通过鼠标侧键
-        elif button == mouse.Button.x1 and not pressed:
-            action = {
-                "trigger_frame": frame_data.total_frames,
-                "action_type": "recall",
-                "params": {"pos": list(virtual_pos)}
-            }
-            self.recorded_actions.append(action)
-            logger.info(f"动作录制: {action}")
+        # 部署 step2：左键，且上一步已经结束
+        if button == mouse.Button.left and isinstance(self._drag_info, DeployAction):
+            if self._drag_info.end_pos and \
+               abs(pos[0] - self._drag_info.end_pos[0]) < (self.target_w * 0.06) and \
+               abs(pos[1] - self._drag_info.end_pos[1]) < (self.target_h * 0.12):
+                self._drag_info.left_start_pos = tuple(pos)
+                logger.info(f"[帧: {frame_data.total_frames}] 部署-方向选择 起始点: {pos}")
                         
+    def _handle_release(self, button: mouse.Button, pos: Tuple[int, int], frame_data: FrameData):
+        """处理鼠标释放事件"""
+        # 部署 step1 结束：左/右键释放，且不在干员栏
+        if button in [mouse.Button.left, mouse.Button.right] \
+           and isinstance(self._drag_info, DeployAction) \
+           and not self._is_in_op_bar(pos):
+
+            self._drag_info.end_pos = tuple(pos)
+            logger.info(f"[帧: {frame_data.total_frames}] 部署结束点: {pos}")
+            return
+
+        # 部署 step2 完成：左键释放，计算方向
+        if button == mouse.Button.left and isinstance(self._drag_info, DeployAction):
+            if self._drag_info.left_start_pos:
+                sx, sy = self._drag_info.left_start_pos
+                ex, ey = pos
+                dx, dy = ex - sx, ey - sy
+                if abs(dx) > abs(dy):
+                    self._drag_info.direction = "right" if dx > 0 else "left"
+                else:
+                    self._drag_info.direction = "down" if dy > 0 else "up"
+
+                self._drag_info.end_pos = self._drag_info.end_pos or tuple(pos)
+                self._record_action(
+                    self._drag_info.trigger_frame,
+                    "deploy",
+                    {
+                        "start_pos": list(self._drag_info.start_pos),
+                        "end_pos": list(self._drag_info.end_pos),
+                        "direction": self._drag_info.direction
+                    }
+                )
+                logger.info(f"[帧: {frame_data.total_frames}] 部署-方向: {self._drag_info.direction}")
+                self._drag_info = None
+            return
+
+        # 宏 skill
+        if button == mouse.Button.x2:
+            self._record_action(frame_data.total_frames, "skill", {"pos": list(pos)})
+            logger.info(f"[帧: {frame_data.total_frames}] skill: {pos}")
+            return
+
+        # 宏 recall
+        if button == mouse.Button.x1:
+            self._record_action(frame_data.total_frames, "recall", {"pos": list(pos)})
+            logger.info(f"[帧: {frame_data.total_frames}] recall: {pos}")
+            return
 
     def _save_plan(self):
         """将录制的动作格式化并保存到YAML文件。"""
