@@ -1,12 +1,10 @@
 import time
-import random
 import logging
 
-import pydirectinput
+import pyautogui
 import win32gui
 import win32api
 import win32con
-import win32process
 
 from typing import Tuple, Optional
 
@@ -15,8 +13,7 @@ from app.control.engine.base import BaseController
 
 logger = logging.getLogger(__name__)
 
-
-pydirectinput.PAUSE = 0.1
+pyautogui.MINIMUM_SLEEP = 0.004
 if not hasattr(win32con, 'XBUTTON1'):
     win32con.XBUTTON1 = 0x0001
 if not hasattr(win32con, 'XBUTTON2'):
@@ -51,6 +48,8 @@ class MumuMacroController(BaseController):
         self.render_hwnd = None
         self.render_area: Tuple[int, int, int, int] = (0, 0, 0, 0) # (x, y, width, height)
         self.is_connected = False
+        # 不要太频繁的调用active_window
+        self.last_active_window_time = -1
 
 
     def _find_render_window_recursive(self, parent_hwnd: int) -> int:
@@ -139,14 +138,16 @@ class MumuMacroController(BaseController):
     def _activate_window(self):
         if not self.is_connected or not self.main_hwnd:
             raise IOError("控制器未连接，无法激活窗口。")
+        if time.time() - self.last_active_window_time < 5:
+            return
+        self.last_active_window_time = time.time()
         try:
-            # windows机制好像不能太频繁？
-            if random.randint(1, 100) > 45:
-                win32gui.SetForegroundWindow(self.main_hwnd)
-                time.sleep(0.1)
-                self._update_render_area() 
+            win32gui.SetForegroundWindow(self.main_hwnd)
+            time.sleep(0.1)
+            self._update_render_area() 
         except:
             pass
+
 
     def deploy(self, start_pos: Tuple[int, int], end_pos: Tuple[int, int], direction: str, slide_length: int = 200):
         """
@@ -165,15 +166,10 @@ class MumuMacroController(BaseController):
             return
 
         logger.debug(f"部署-放置: {start_pos} -> {end_pos} (屏幕: {screen_start} -> {screen_end})")
-        pydirectinput.moveTo(*screen_start)
-        time.sleep(0.1)
-        pydirectinput.mouseDown(button='right')
+        pyautogui.click(*screen_start)
         time.sleep(0.5)
-        pydirectinput.moveTo(*screen_end, duration=2)
-        time.sleep(0.5)
-        pydirectinput.mouseUp(button='right')
-        
-        time.sleep(0.3) # 等待放置动画完成
+        pyautogui.dragTo(*screen_end, button='right', duration=0.5)
+        time.sleep(0.5) 
 
         # 步骤 2: 设定朝向 (左键拖拽)
         target_w, target_h = self.target_resolution
@@ -192,11 +188,7 @@ class MumuMacroController(BaseController):
             
         logger.debug(f"部署-朝向 ({direction}): {end_pos} -> {end_slide_virtual} (屏幕: {screen_end} -> {screen_slide_end})")
         # 鼠标当前应该还在 screen_end 位置
-        pydirectinput.mouseDown(button='left')
-        time.sleep(self.action_delay)
-        pydirectinput.moveTo(*screen_slide_end, duration=0.5)
-        time.sleep(self.action_delay)
-        pydirectinput.mouseUp(button='left')
+        pyautogui.dragTo(*screen_slide_end, duration=0.5)
 
 
     def skill(self, pos: Tuple[int, int]):
@@ -205,7 +197,7 @@ class MumuMacroController(BaseController):
         if not screen_pos: return
         
         logger.debug(f"技能: {pos} (屏幕: {screen_pos})")
-        pydirectinput.moveTo(*screen_pos)
+        pyautogui.moveTo(*screen_pos)
         time.sleep(self.action_delay)
         win32api.mouse_event(win32con.MOUSEEVENTF_XDOWN, 0, 0, win32con.XBUTTON2, 0)
         time.sleep(self.action_delay)
@@ -218,7 +210,7 @@ class MumuMacroController(BaseController):
         if not screen_pos: return
 
         logger.debug(f"撤退: {pos} (屏幕: {screen_pos})")
-        pydirectinput.moveTo(*screen_pos)
+        pyautogui.moveTo(*screen_pos)
         time.sleep(self.action_delay)
         win32api.mouse_event(win32con.MOUSEEVENTF_XDOWN, 0, 0, win32con.XBUTTON1, 0)
         time.sleep(self.action_delay)
