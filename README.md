@@ -36,8 +36,8 @@
 
 1.  克隆本仓库：
     ```bash
-    git clone https://github.com/your-username/your-repo-name.git
-    cd your-repo-name
+    git clone https://github.com/tomo1122/zhou.git
+    cd zhou
     ```
 
 2.  安装依赖项：
